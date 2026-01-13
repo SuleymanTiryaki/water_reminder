@@ -14,10 +14,10 @@ dependencies:
   flutter_bloc: ^7.0.0
   rxdart: ^0.26.0
   shared_preferences: ^2.0.15
-  flutter_local_notifications: ^17.0.0
-  permission_handler: ^11.0.1
-  android_alarm_manager_plus: ^5.0.0
-  timezone: ^0.9.0
+  
+  # Plugin - Tüm bildirim sistemi buradan geliyor
+  notification_scheduler:
+    path: ../notification_scheduler
 
 dev_dependencies:
   flutter_test:

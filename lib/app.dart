@@ -2,13 +2,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:notification_scheduler/notification_scheduler.dart';
 
 import 'package:waterreminder/product/water_reminder/cubit/water_cubit.dart';
 import 'package:waterreminder/product/water_reminder/service/water_service.dart';
 import 'package:waterreminder/product/water_reminder/view/home_page.dart';
 import 'package:waterreminder/product/water_reminder/view/theme/app_theme.dart';
-import 'package:waterreminder/data/notification/notification_service.dart';
-import 'package:waterreminder/data/notification/background_refresh_service.dart';
 
 class App extends StatefulWidget {
   @override
@@ -17,6 +16,7 @@ class App extends StatefulWidget {
 
 class _AppState extends State<App> {
   final _service = WaterService();
+  bool _notificationsChecked = false; // Sadece bir kez kontrol et
 
   @override
   void initState() {
@@ -26,11 +26,10 @@ class _AppState extends State<App> {
   }
 
   Future<void> _initNotifications() async {
-    await NotificationService().initialize();
-    
-    // iOS için arka plan yenilemesini kontrol et
-    if (Platform.isIOS) {
-      await BackgroundRefreshService.checkAndRefreshIfNeeded();
+    // iOS için arka plan yenilemesini SADECE BİR KEZ kontrol et
+    if (Platform.isIOS && !_notificationsChecked) {
+      _notificationsChecked = true;
+      await NotificationScheduler.checkAndRefresh();
     }
   }
 

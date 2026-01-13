@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:notification_scheduler/notification_scheduler.dart';
 
 import 'package:waterreminder/product/water_reminder/cubit/water_cubit.dart';
-import 'package:waterreminder/data/notification/notification_service.dart';
 import 'package:waterreminder/product/water_reminder/view/widget/rolling_switch_button.dart';
 import 'package:waterreminder/util/dialog.dart';
 import 'package:waterreminder/util/num_extension.dart';
@@ -14,118 +14,33 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  final _notificationService = NotificationService();
-
-  @override
-  void initState() {
-    super.initState();
-    _checkAndRequestPermission();
-  }
-
-  Future<void> _checkAndRequestPermission() async {
-    await _notificationService.requestPermission();
-  }
-
+  // İzin kontrolü kaldırıldı - Sadece toggle açıldığında izin istenecek
+  
   Future<void> _handleAlarmToggle(bool value) async {
     if (value) {
-      // 1. Bildirim iznini kontrol et ve iste
-      final notificationStatus = await Permission.notification.status;
-      if (!notificationStatus.isGranted) {
-        final result = await Permission.notification.request();
-        if (!result.isGranted) {
-          if (!mounted) return;
-          _showPermissionDialog('Bildirim İzni', 
-            'Hatırlatmaların çalışması için bildirim izni gereklidir.\n\nLütfen ayarlardan bildirim iznini açın.');
-          return;
-        }
-      }
-
-      // 2. Exact Alarm iznini kontrol et (Android 12+)
-      try {
-        final alarmStatus = await Permission.scheduleExactAlarm.status;
-        if (!alarmStatus.isGranted) {
-          if (!mounted) return;
-          _showPermissionDialog('Tam Zamanlı Alarm İzni', 
-            'Bildirimlerin tam zamanında gelmesi için bu izin gereklidir.\n\nLütfen ayarlardan "Alarms & reminders" iznini açın.');
-          return;
-        }
-      } catch (e) {
-        print('Exact alarm izni kontrolü hatası (Android 8-11 için normal): $e');
-      }
-
-      // 3. Pil optimizasyonunu kontrol et
-      try {
-        final batteryStatus = await Permission.ignoreBatteryOptimizations.status;
-        if (!batteryStatus.isGranted) {
-          if (!mounted) return;
-          final shouldContinue = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: Text('Pil Optimizasyonu'),
-              content: Text(
-                'Bildirimlerin düzenli çalışması için pil optimizasyonunu kapatmanız önerilir.\n\n'
-                '• Ayarlar > Pil > Pil optimizasyonu\n'
-                '• Bu uygulamayı bulun\n'
-                '• "Optimize etme" seçeneğini seçin\n\n'
-                'Şimdi ayarlara gitmek ister misiniz?'
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: Text('Daha Sonra'),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context, true);
-                    openAppSettings();
-                  },
-                  child: Text('Ayarlara Git'),
-                ),
-              ],
+      // Plugin'in izin kontrolünü kullan (spam yapmaz)
+      final hasPermission = await NotificationScheduler.requestPermission();
+      
+      if (!hasPermission) {
+        if (!mounted) return;
+        
+        // İzin reddedildiyse kullanıcıyı uyar
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚠️ Bildirim izni gerekli! Lütfen ayarlardan izin verin.'),
+            duration: Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'Ayarlar',
+              onPressed: () => openAppSettings(),
             ),
-          );
-          // Pil optimizasyonu opsiyonel, kullanıcı "Daha Sonra" diyebilir
-          if (shouldContinue == null || shouldContinue == false) {
-            // Yine de devam et ama uyarı göster
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('⚠️ Pil optimizasyonu açık olduğu için bildirimler gecikebilir.'),
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
-        }
-      } catch (e) {
-        print('Battery optimization kontrolü hatası: $e');
+          ),
+        );
+        return; // Toggle açılmasın
       }
     }
 
     // İzin varsa veya alarm kapatılıyorsa, işleme devam et
     context.read<WaterCubit>().changeAlarmEnabled(value);
-  }
-
-  Future<void> _showPermissionDialog(String title, String message) async {
-    return showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('İptal'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              openAppSettings();
-            },
-            child: Text('Ayarlara Git'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -274,7 +189,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () async {
-                    await _notificationService.showTestNotification();
+                    await NotificationScheduler.showTestNotification();
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('Test bildirimi gönderildi!')),
@@ -287,6 +202,34 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   child: Text(
                     'Test Bildirimi Gönder',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ),
+              SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    print('🔍 Bekleyen bildirim sayısı kontrol ediliyor...');
+                    final count = await NotificationScheduler.getPendingCount();
+                    print('📊 Sonuç: $count bildirim');
+                    
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Bekleyen bildirim sayısı: $count'),
+                          duration: Duration(seconds: 3),
+                        ),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: Text(
+                    '🔍 Bekleyen Bildirimleri Kontrol Et',
                     style: TextStyle(color: Colors.white),
                   ),
                 ),

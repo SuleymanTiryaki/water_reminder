@@ -1,22 +1,14 @@
-import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
-import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
+import 'package:notification_scheduler/notification_scheduler.dart';
 
 import 'app.dart';
-import 'data/notification/background_refresh_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Android için AlarmManager'ı başlat
-  if (Platform.isAndroid) {
-    await AndroidAlarmManager.initialize();
-    print('✅ Android Alarm Manager başlatıldı');
-  } else if (Platform.isIOS) {
-    print('✅ iOS - Alarm Manager gerekmez');
-    // iOS background refresh servisini başlat
-    await BackgroundRefreshService.initialize();
-  }
+  // Plugin ile bildirim sistemini başlat (hem Android hem iOS)
+  await NotificationScheduler.initialize();
+  print('✅ Notification Scheduler Plugin başlatıldı');
   
   runApp(App());
 }
